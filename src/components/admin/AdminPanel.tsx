@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
 import { X, Zap, LayoutDashboard, Package, Users, ShoppingBag, CreditCard, Settings, FileText, LogOut, Plus, Minus, Edit, Trash2, Lock, Unlock, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAdminStore, useProductStore, useSettingsStore } from '../../stores/appStore';
@@ -89,16 +90,31 @@ export default function AdminPanel() {
 }
 
 function DashboardTab() {
-  const users = useAuthStore((s) => s.users);
-  const products = useProductStore((s) => s.products);
-  const orders = useOrderStore((s) => s.orders);
-  const transactions = useTransactionStore((s) => s.transactions);
-  const stats = [
-    { label: 'Người dùng', value: users.length, icon: '👥', color: '#00e5ff' },
-    { label: 'Sản phẩm', value: products.length, icon: '📦', color: '#7c4dff' },
-    { label: 'Đơn hàng', value: orders.length, icon: '🛒', color: '#00e676' },
-    { label: 'Giao dịch', value: transactions.length, icon: '💳', color: '#ffc107' },
-  ];
+  const [stats, setStats] = useState([
+    { label: 'Người dùng', value: 0, icon: '👥', color: '#00e5ff' },
+    { label: 'Sản phẩm', value: 0, icon: '📦', color: '#7c4dff' },
+    { label: 'Đơn hàng', value: 0, icon: '🛒', color: '#00e676' },
+    { label: 'Giao dịch', value: 0, icon: '💳', color: '#ffc107' },
+  ]);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      const [{ count: uCount }, { count: pCount }, { count: oCount }, { count: tCount }] = await Promise.all([
+        supabase.from('profiles').select('*', { count: 'exact', head: true }),
+        supabase.from('products').select('*', { count: 'exact', head: true }),
+        supabase.from('orders').select('*', { count: 'exact', head: true }),
+        supabase.from('transactions').select('*', { count: 'exact', head: true }),
+      ]);
+      setStats([
+        { label: 'Người dùng', value: uCount || 0, icon: '👥', color: '#00e5ff' },
+        { label: 'Sản phẩm', value: pCount || 0, icon: '📦', color: '#7c4dff' },
+        { label: 'Đơn hàng', value: oCount || 0, icon: '🛒', color: '#00e676' },
+        { label: 'Giao dịch', value: tCount || 0, icon: '💳', color: '#ffc107' },
+      ]);
+    };
+    fetchStats();
+  }, []);
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
       {stats.map((s, i) => (
@@ -113,7 +129,7 @@ function DashboardTab() {
 }
 
 function ProductsTab({ adminUsername, addAuditLog }: any) {
-  const { products, updateProduct, deleteProduct, addProduct } = useProductStore();
+  const { products, fetchProducts } = useProductStore();
   const [editing, setEditing] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', price: '', image_url: '', short_description: '', download_url: '', slug: '', description: '', category_id: categories[0]?.id || 'cat-1' });
   const [showAdd, setShowAdd] = useState(false);
@@ -129,24 +145,37 @@ function ProductsTab({ adminUsername, addAuditLog }: any) {
 
   const resetForm = () => setForm({ name: '', price: '', image_url: '', short_description: '', download_url: '', slug: '', description: '', category_id: categories[0]?.id || 'cat-1' });
   const startEdit = (p: any) => { setEditing(p.id); setShowAdd(false); setForm({ name: p.name, price: String(p.price), image_url: p.image_url, short_description: p.short_description, download_url: p.download_url, slug: p.slug, description: p.description, category_id: p.category_id || categories[0]?.id || 'cat-1' }); };
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!editing || !form.name || !form.price) { toast.error('Điền đầy đủ tên và giá'); return; }
     const old = products.find(p => p.id === editing);
-    updateProduct(editing, { name: form.name, slug: form.slug || form.name.toLowerCase().replace(/\s+/g, '-'), price: Number(form.price), image_url: form.image_url, short_description: form.short_description, description: form.description || form.short_description, download_url: form.download_url, category_id: form.category_id });
+    
+    const { error } = await supabase.from('products').update({
+      name: form.name, slug: form.slug || form.name.toLowerCase().replace(/\s+/g, '-'), price: Number(form.price), image_url: form.image_url, short_description: form.short_description, description: form.description || form.short_description, download_url: form.download_url, category_id: form.category_id
+    }).eq('id', editing);
+    
+    if (error) { toast.error('Lỗi khi sửa sản phẩm'); return; }
+
     addAuditLog({ admin_id: 'admin', admin_username: adminUsername, action: 'Sửa sản phẩm', target_type: 'product', target_id: editing, details: `Sửa: ${old?.name} → ${form.name}`, old_value: old?.name, new_value: form.name });
     toast.success('Đã cập nhật sản phẩm'); setEditing(null); resetForm();
+    fetchProducts();
   };
-  const handleDelete = (id: string, name: string) => {
+  const handleDelete = async (id: string, name: string) => {
     if (!confirm(`Xóa sản phẩm "${name}"?`)) return;
-    deleteProduct(id);
+    const { error } = await supabase.from('products').delete().eq('id', id);
+    if (error) { toast.error('Lỗi xóa sản phẩm'); return; }
     addAuditLog({ admin_id: 'admin', admin_username: adminUsername, action: 'Xóa sản phẩm', target_type: 'product', target_id: id, details: `Xóa: ${name}` });
     toast.success('Đã xóa sản phẩm');
+    fetchProducts();
   };
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!form.name || !form.price) { toast.error('Điền đầy đủ tên và giá'); return; }
-    addProduct({ name: form.name, slug: form.slug || form.name.toLowerCase().replace(/\s+/g, '-'), price: Number(form.price), image_url: form.image_url || 'https://placehold.co/400x300/1a1f2e/00e5ff?text=New', short_description: form.short_description, description: form.description || form.short_description, download_url: form.download_url, category_id: form.category_id, is_active: true, is_featured: false, stock: 99, sold_count: 0, tags: [], original_price: undefined });
+    const { error } = await supabase.from('products').insert({
+      name: form.name, slug: form.slug || form.name.toLowerCase().replace(/\s+/g, '-'), price: Number(form.price), image_url: form.image_url || 'https://placehold.co/400x300/1a1f2e/00e5ff?text=New', short_description: form.short_description, description: form.description || form.short_description, download_url: form.download_url, category_id: form.category_id, is_active: true, is_featured: false, stock: 99, sold_count: 0
+    });
+    if (error) { toast.error('Lỗi thêm sản phẩm'); return; }
     addAuditLog({ admin_id: 'admin', admin_username: adminUsername, action: 'Thêm sản phẩm', target_type: 'product', target_id: 'new', details: `Thêm: ${form.name}` });
     toast.success('Đã thêm sản phẩm'); setShowAdd(false); resetForm();
+    fetchProducts();
   };
 
   return (
@@ -217,27 +246,43 @@ function ProductsTab({ adminUsername, addAuditLog }: any) {
 }
 
 function UsersTab({ adminUsername, addAuditLog }: any) {
-  const { users, updateBalance, toggleLockUser } = useAuthStore();
-  const addTransaction = useTransactionStore((s) => s.addTransaction);
+  const [users, setUsers] = useState<any[]>([]);
   const [amountMap, setAmountMap] = useState<Record<string, string>>({});
 
-  const handleBalance = (userId: string, username: string, isAdd: boolean) => {
+  const fetchUsers = async () => {
+    const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
+    if (data) setUsers(data);
+  };
+
+  useEffect(() => { fetchUsers(); }, []);
+
+  const handleBalance = async (userId: string, username: string, isAdd: boolean) => {
     const amt = Number(amountMap[userId] || 0);
     if (!amt || amt <= 0) { toast.error('Nhập số tiền hợp lệ'); return; }
     const user = users.find(u => u.id === userId);
     if (!user) return;
+    
     const change = isAdd ? amt : -amt;
-    updateBalance(userId, change);
-    addTransaction({ user_id: userId, type: isAdd ? 'admin_add' : 'admin_deduct', amount: change, balance_before: user.balance, balance_after: user.balance + change, description: `Admin ${isAdd ? 'cộng' : 'trừ'} ${formatCurrency(amt)}`, status: 'completed' });
-    addAuditLog({ admin_id: 'admin', admin_username: adminUsername, action: isAdd ? 'Cộng tiền' : 'Trừ tiền', target_type: 'user', target_id: userId, details: `${username}: ${isAdd ? '+' : '-'}${formatCurrency(amt)}`, old_value: String(user.balance), new_value: String(user.balance + change) });
+    const newBalance = user.balance + change;
+    
+    // update db
+    const { error } = await supabase.from('profiles').update({ balance: newBalance }).eq('id', userId);
+    if (error) { toast.error('Lỗi khi cập nhật số dư'); return; }
+
+    await supabase.from('transactions').insert({ user_id: userId, type: isAdd ? 'admin_add' : 'admin_deduct', amount: change, description: `Admin ${isAdd ? 'cộng' : 'trừ'} ${formatCurrency(amt)}`, status: 'completed' });
+    
+    addAuditLog({ admin_id: 'admin', admin_username: adminUsername, action: isAdd ? 'Cộng tiền' : 'Trừ tiền', target_type: 'user', target_id: userId, details: `${username}: ${isAdd ? '+' : '-'}${formatCurrency(amt)}`, old_value: String(user.balance), new_value: String(newBalance) });
     toast.success(`Đã ${isAdd ? 'cộng' : 'trừ'} ${formatCurrency(amt)} cho ${username}`);
     setAmountMap(prev => ({ ...prev, [userId]: '' }));
+    fetchUsers();
   };
 
-  const handleLock = (userId: string, username: string, isLocked: boolean) => {
-    toggleLockUser(userId);
+  const handleLock = async (userId: string, username: string, isLocked: boolean) => {
+    const { error } = await supabase.from('profiles').update({ is_locked: !isLocked }).eq('id', userId);
+    if (error) { toast.error('Lỗi khi khóa/mở khóa'); return; }
     addAuditLog({ admin_id: 'admin', admin_username: adminUsername, action: isLocked ? 'Mở khóa user' : 'Khóa user', target_type: 'user', target_id: userId, details: `${username}: ${isLocked ? 'Mở khóa' : 'Khóa'}` });
     toast.success(`Đã ${isLocked ? 'mở khóa' : 'khóa'} ${username}`);
+    fetchUsers();
   };
 
   return (
@@ -269,11 +314,21 @@ function UsersTab({ adminUsername, addAuditLog }: any) {
 }
 
 function OrdersTab({ adminUsername, addAuditLog }: any) {
-  const { orders, updateStatus } = useOrderStore();
-  const handleStatus = (orderId: string, status: string) => {
-    updateStatus(orderId, status as any);
+  const [orders, setOrders] = useState<any[]>([]);
+
+  const fetchOrders = async () => {
+    const { data } = await supabase.from('orders').select('*, profiles(username)').order('created_at', { ascending: false });
+    if (data) setOrders(data);
+  };
+
+  useEffect(() => { fetchOrders(); }, []);
+
+  const handleStatus = async (orderId: string, status: string) => {
+    const { error } = await supabase.from('orders').update({ status }).eq('id', orderId);
+    if (error) { toast.error('Lỗi cập nhật'); return; }
     addAuditLog({ admin_id: 'admin', admin_username: adminUsername, action: 'Đổi trạng thái đơn', target_type: 'order', target_id: orderId, details: `Đơn ${orderId}: → ${status}` });
     toast.success('Đã cập nhật trạng thái');
+    fetchOrders();
   };
   return (
     <div className="table-container">
@@ -283,7 +338,7 @@ function OrdersTab({ adminUsername, addAuditLog }: any) {
           {orders.map(o => (
             <tr key={o.id || generateId()}>
               <td style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>{o.id ? o.id.slice(0, 8) : 'unknown'}</td>
-              <td style={{ fontWeight: 600 }}>{o.product_name || 'Sản phẩm'}</td>
+              <td style={{ fontWeight: 600 }}>{o.profiles?.username || 'Sản phẩm'}</td>
               <td style={{ color: 'var(--color-primary)', fontWeight: 700 }}>{formatCurrency(o.total_price || 0)}</td>
               <td><span className={getStatusColor(o.status || 'pending')} style={{ fontWeight: 600, fontSize: '0.85rem' }}>{getStatusText(o.status || 'pending')}</span></td>
               <td style={{ fontSize: '0.8rem' }}>{o.created_at ? formatDate(o.created_at) : 'Không xác định'}</td>
@@ -305,7 +360,15 @@ function OrdersTab({ adminUsername, addAuditLog }: any) {
 }
 
 function TransactionsTab() {
-  const transactions = useTransactionStore((s) => s.transactions);
+  const [transactions, setTransactions] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchTx = async () => {
+      const { data } = await supabase.from('transactions').select('*').order('created_at', { ascending: false });
+      if (data) setTransactions(data);
+    };
+    fetchTx();
+  }, []);
   return (
     <div className="table-container">
       <table>
