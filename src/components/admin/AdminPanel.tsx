@@ -281,14 +281,14 @@ function OrdersTab({ adminUsername, addAuditLog }: any) {
         <thead><tr><th>ID</th><th>Sản phẩm</th><th>Tổng tiền</th><th>Trạng thái</th><th>Ngày</th><th>Thao tác</th></tr></thead>
         <tbody>
           {orders.map(o => (
-            <tr key={o.id}>
-              <td style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>{o.id.slice(0, 8)}</td>
-              <td style={{ fontWeight: 600 }}>{o.product_name}</td>
-              <td style={{ color: 'var(--color-primary)', fontWeight: 700 }}>{formatCurrency(o.total_price)}</td>
-              <td><span className={getStatusColor(o.status)} style={{ fontWeight: 600, fontSize: '0.85rem' }}>{getStatusText(o.status)}</span></td>
-              <td style={{ fontSize: '0.8rem' }}>{formatDate(o.created_at)}</td>
+            <tr key={o.id || generateId()}>
+              <td style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>{o.id ? o.id.slice(0, 8) : 'unknown'}</td>
+              <td style={{ fontWeight: 600 }}>{o.product_name || 'Sản phẩm'}</td>
+              <td style={{ color: 'var(--color-primary)', fontWeight: 700 }}>{formatCurrency(o.total_price || 0)}</td>
+              <td><span className={getStatusColor(o.status || 'pending')} style={{ fontWeight: 600, fontSize: '0.85rem' }}>{getStatusText(o.status || 'pending')}</span></td>
+              <td style={{ fontSize: '0.8rem' }}>{o.created_at ? formatDate(o.created_at) : 'Không xác định'}</td>
               <td>
-                <select className="input-neon" style={{ padding: '4px 8px', fontSize: '0.75rem', width: 'auto' }} value={o.status} onChange={e => handleStatus(o.id, e.target.value)}>
+                <select className="input-neon" style={{ padding: '4px 8px', fontSize: '0.75rem', width: 'auto' }} value={o.status || 'pending'} onChange={e => handleStatus(o.id, e.target.value)}>
                   <option value="pending">Đang xử lý</option>
                   <option value="completed">Hoàn thành</option>
                   <option value="cancelled">Đã hủy</option>
@@ -312,13 +312,13 @@ function TransactionsTab() {
         <thead><tr><th>ID</th><th>Loại</th><th>Số tiền</th><th>Mô tả</th><th>Trạng thái</th><th>Ngày</th></tr></thead>
         <tbody>
           {transactions.map(tx => (
-            <tr key={tx.id}>
-              <td style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>{tx.id.slice(0, 8)}</td>
-              <td><span className="badge badge-cyan" style={{ fontSize: '0.7rem' }}>{tx.type}</span></td>
-              <td style={{ fontWeight: 700, color: tx.amount >= 0 ? '#00e676' : '#ff5252' }}>{tx.amount >= 0 ? '+' : ''}{formatCurrency(Math.abs(tx.amount))}</td>
-              <td style={{ fontSize: '0.85rem' }}>{tx.description}</td>
-              <td><span className={getStatusColor(tx.status)} style={{ fontWeight: 600, fontSize: '0.85rem' }}>{getStatusText(tx.status)}</span></td>
-              <td style={{ fontSize: '0.8rem' }}>{formatDate(tx.created_at)}</td>
+            <tr key={tx.id || generateId()}>
+              <td style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>{tx.id ? tx.id.slice(0, 8) : 'unknown'}</td>
+              <td><span className="badge badge-cyan" style={{ fontSize: '0.7rem' }}>{tx.type || 'unknown'}</span></td>
+              <td style={{ fontWeight: 700, color: tx.amount >= 0 ? '#00e676' : '#ff5252' }}>{tx.amount >= 0 ? '+' : ''}{formatCurrency(Math.abs(tx.amount || 0))}</td>
+              <td style={{ fontSize: '0.85rem' }}>{tx.description || ''}</td>
+              <td><span className={getStatusColor(tx.status || 'completed')} style={{ fontWeight: 600, fontSize: '0.85rem' }}>{getStatusText(tx.status || 'completed')}</span></td>
+              <td style={{ fontSize: '0.8rem' }}>{tx.created_at ? formatDate(tx.created_at) : 'Không xác định'}</td>
             </tr>
           ))}
           {transactions.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: 'var(--color-text-muted)' }}>Chưa có giao dịch</td></tr>}

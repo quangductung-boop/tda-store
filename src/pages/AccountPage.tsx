@@ -4,7 +4,7 @@ import { User, ShoppingBag, Wallet, Lock, Download, ExternalLink } from 'lucide-
 import toast from 'react-hot-toast';
 import { useAuthStore, useOrderStore, useTransactionStore } from '../stores/authStore';
 import { content } from '../config/content';
-import { formatCurrency, formatDate, getStatusColor, getStatusText, getTransactionTypeText } from '../utils/helpers';
+import { formatCurrency, formatDate, getStatusColor, getStatusText, getTransactionTypeText, generateId } from '../utils/helpers';
 import { validate } from '../utils/helpers';
 
 export default function AccountPage() {
@@ -95,15 +95,15 @@ export default function AccountPage() {
         orders.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {orders.map((order) => (
-              <div key={order.id} style={{ padding: '20px', borderRadius: '14px', background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <img src={order.product_image} alt={order.product_name} style={{ width: '80px', height: '60px', borderRadius: '10px', objectFit: 'cover' }} />
+              <div key={order.id || generateId()} style={{ padding: '20px', borderRadius: '14px', background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <img src={order.product_image || 'https://placehold.co/80x60/1a1f2e/00e5ff?text=No+Image'} alt={order.product_name || 'Sản phẩm'} style={{ width: '80px', height: '60px', borderRadius: '10px', objectFit: 'cover' }} />
                 <div style={{ flex: 1, minWidth: '150px' }}>
-                  <h4 style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: '4px' }}>{order.product_name}</h4>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>{formatDate(order.created_at)}</p>
+                  <h4 style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: '4px' }}>{order.product_name || 'Sản phẩm'}</h4>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>{order.created_at ? formatDate(order.created_at) : 'Không xác định'}</p>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <p style={{ fontWeight: 700, color: 'var(--color-primary)', marginBottom: '4px' }}>{formatCurrency(order.total_price)}</p>
-                  <span className={getStatusColor(order.status)} style={{ fontSize: '0.8rem', fontWeight: 600 }}>{getStatusText(order.status)}</span>
+                  <p style={{ fontWeight: 700, color: 'var(--color-primary)', marginBottom: '4px' }}>{formatCurrency(order.total_price || 0)}</p>
+                  <span className={getStatusColor(order.status || 'pending')} style={{ fontSize: '0.8rem', fontWeight: 600 }}>{getStatusText(order.status || 'pending')}</span>
                 </div>
                 {order.status === 'completed' && order.download_url && order.download_url !== '#' && (
                   <a href={order.download_url} target="_blank" rel="noopener noreferrer" className="btn-neon" style={{ padding: '8px 16px', fontSize: '0.8rem' }}><Download size={14} />Tải xuống</a>
@@ -127,12 +127,12 @@ export default function AccountPage() {
               <thead><tr><th>Thời gian</th><th>Loại</th><th>Mô tả</th><th>Số tiền</th><th>Số dư sau</th></tr></thead>
               <tbody>
                 {transactions.map((tx) => (
-                  <tr key={tx.id}>
-                    <td style={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }}>{formatDate(tx.created_at)}</td>
-                    <td><span className="badge badge-cyan" style={{ fontSize: '0.7rem' }}>{getTransactionTypeText(tx.type)}</span></td>
-                    <td style={{ fontSize: '0.85rem' }}>{tx.description}</td>
-                    <td style={{ fontWeight: 700, color: tx.amount >= 0 ? '#00e676' : '#ff5252' }}>{tx.amount >= 0 ? '+' : ''}{formatCurrency(Math.abs(tx.amount))}</td>
-                    <td style={{ fontWeight: 600 }}>{formatCurrency(tx.balance_after)}</td>
+                  <tr key={tx.id || generateId()}>
+                    <td style={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }}>{tx.created_at ? formatDate(tx.created_at) : 'Không xác định'}</td>
+                    <td><span className="badge badge-cyan" style={{ fontSize: '0.7rem' }}>{getTransactionTypeText(tx.type || 'unknown')}</span></td>
+                    <td style={{ fontSize: '0.85rem' }}>{tx.description || ''}</td>
+                    <td style={{ fontWeight: 700, color: tx.amount >= 0 ? '#00e676' : '#ff5252' }}>{tx.amount >= 0 ? '+' : ''}{formatCurrency(Math.abs(tx.amount || 0))}</td>
+                    <td style={{ fontWeight: 600 }}>{formatCurrency(tx.balance_after || 0)}</td>
                   </tr>
                 ))}
               </tbody>

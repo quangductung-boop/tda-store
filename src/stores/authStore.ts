@@ -13,6 +13,7 @@ interface AuthStore {
   users: User[];
   isLoading: boolean;
   isAuthenticated: boolean;
+  passwords: Record<string, string>;
 
   // Actions
   login: (username: string, password: string) => Promise<boolean>;
@@ -25,8 +26,7 @@ interface AuthStore {
   getAllUsers: () => User[];
 }
 
-// Lưu mật khẩu tạm ở local (khi có Supabase sẽ dùng Auth)
-const passwordStore: Record<string, string> = {};
+// Mật khẩu sẽ được lưu trong store thay vì biến ngoài
 
 export const useAuthStore = create<AuthStore>()(
   persist(
@@ -35,6 +35,7 @@ export const useAuthStore = create<AuthStore>()(
       users: [],
       isLoading: false,
       isAuthenticated: false,
+      passwords: {},
 
       login: async (username: string, password: string) => {
         set({ isLoading: true });
@@ -54,7 +55,7 @@ export const useAuthStore = create<AuthStore>()(
         }
 
         // Check password
-        if (passwordStore[user.id] !== password) {
+        if (get().passwords[user.id] !== password) {
           set({ isLoading: false });
           return false;
         }
@@ -84,10 +85,9 @@ export const useAuthStore = create<AuthStore>()(
           updated_at: new Date().toISOString(),
         };
 
-        passwordStore[newUser.id] = password;
-
         set((state) => ({
           users: [...state.users, newUser],
+          passwords: { ...state.passwords, [newUser.id]: password },
           user: newUser,
           isAuthenticated: true,
           isLoading: false,
@@ -115,11 +115,13 @@ export const useAuthStore = create<AuthStore>()(
         const user = get().user;
         if (!user) return { success: false, message: 'Chưa đăng nhập' };
 
-        if (passwordStore[user.id] !== oldPassword) {
+        if (get().passwords[user.id] !== oldPassword) {
           return { success: false, message: 'Mật khẩu cũ không đúng' };
         }
 
-        passwordStore[user.id] = newPassword;
+        set((state) => ({
+          passwords: { ...state.passwords, [user.id]: newPassword }
+        }));
         return { success: true, message: 'Đổi mật khẩu thành công!' };
       },
 
@@ -143,6 +145,7 @@ export const useAuthStore = create<AuthStore>()(
         users: state.users,
         user: state.user,
         isAuthenticated: state.isAuthenticated,
+        passwords: state.passwords,
       }),
     }
   )
