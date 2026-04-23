@@ -55,7 +55,13 @@ export const useAuthStore = create<AuthStore>()(
         }
 
         // Check password
-        if (get().passwords[user.id] !== password) {
+        const storedPassword = get().passwords[user.id];
+        if (!storedPassword) {
+          // Auto-migrate legacy account
+          set((state) => ({
+            passwords: { ...state.passwords, [user.id]: password }
+          }));
+        } else if (storedPassword !== password) {
           set({ isLoading: false });
           return false;
         }
