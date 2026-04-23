@@ -1,7 +1,7 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useEffect } from 'react';
-import { useAdminStore } from './stores/appStore';
+import { useAdminStore, useProductStore } from './stores/appStore';
 
 // Layout
 import Navbar from './components/layout/Navbar';
@@ -12,16 +12,25 @@ import HomePage from './pages/HomePage';
 import ShopPage from './pages/ShopPage';
 import ProductPage from './pages/ProductPage';
 import WalletPage from './pages/WalletPage';
-import AccountPage from './pages/AccountPage';
+import Profile from './pages/Profile';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import SupportPage from './pages/SupportPage';
+
+// Auth & Protection
+import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/layout/ProtectedRoute';
 
 // Admin
 import AdminPanel from './components/admin/AdminPanel';
 
 function App() {
   const { setShowAdminPanel, showAdminPanel, isAdminLoggedIn } = useAdminStore();
+  const fetchProducts = useProductStore((s) => s.fetchProducts);
+
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
 
   // Ctrl + Shift + A to toggle admin panel
   useEffect(() => {
@@ -41,7 +50,8 @@ function App() {
   }, [setShowAdminPanel, showAdminPanel, isAdminLoggedIn]);
 
   return (
-    <div className="page-container">
+    <AuthProvider>
+      <div className="page-container">
       <Toaster
         position="top-right"
         toastOptions={{
@@ -71,16 +81,22 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/shop" element={<ShopPage />} />
           <Route path="/product/:slug" element={<ProductPage />} />
-          <Route path="/wallet" element={<WalletPage />} />
-          <Route path="/account" element={<AccountPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/support" element={<SupportPage />} />
+          
+          <Route path="/admin" element={<AdminPanel />} />
+          <Route element={<ProtectedRoute />}>
+            <Route path="/wallet" element={<WalletPage />} />
+            <Route path="/account" element={<Profile />} />
+            <Route path="/orders" element={<Navigate to="/account?tab=orders" replace />} />
+          </Route>
         </Routes>
       </main>
 
       <Footer />
-    </div>
+      </div>
+    </AuthProvider>
   );
 }
 

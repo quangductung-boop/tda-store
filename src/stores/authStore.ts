@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import type { User, Transaction, Order } from '../types';
 import { generateId } from '../utils/helpers';
 
@@ -29,7 +28,6 @@ interface AuthStore {
 // Mật khẩu sẽ được lưu trong store thay vì biến ngoài
 
 export const useAuthStore = create<AuthStore>()(
-  persist(
     (set, get) => ({
       user: null,
       users: [],
@@ -144,17 +142,7 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       getAllUsers: () => get().users,
-    }),
-    {
-      name: 'tda-auth-store',
-      partialize: (state) => ({
-        users: state.users,
-        user: state.user,
-        isAuthenticated: state.isAuthenticated,
-        passwords: state.passwords,
-      }),
-    }
-  )
+    })
 );
 
 // ==========================================
@@ -169,7 +157,6 @@ interface TransactionStore {
 }
 
 export const useTransactionStore = create<TransactionStore>()(
-  persist(
     (set, get) => ({
       transactions: [],
 
@@ -196,9 +183,7 @@ export const useTransactionStore = create<TransactionStore>()(
           ),
         }));
       },
-    }),
-    { name: 'tda-transaction-store' }
-  )
+    })
 );
 
 // ==========================================
@@ -213,7 +198,6 @@ interface OrderStore {
 }
 
 export const useOrderStore = create<OrderStore>()(
-  persist(
     (set, get) => ({
       orders: [],
 
@@ -241,7 +225,5 @@ export const useOrderStore = create<OrderStore>()(
           ),
         }));
       },
-    }),
-    { name: 'tda-order-store' }
-  )
+    })
 );

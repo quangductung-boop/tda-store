@@ -1,8 +1,9 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ShoppingCart, Download, Shield, Zap, Tag } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { supabase } from '../lib/supabase';
 import { useProductStore } from '../stores/appStore';
-import { useAuthStore, useOrderStore, useTransactionStore } from '../stores/authStore';
+import { useAuth } from '../context/AuthContext';
 import { content } from '../config/content';
 import { formatCurrency } from '../utils/helpers';
 import { categories } from '../data/categories';
@@ -12,9 +13,7 @@ export default function ProductPage() {
   const navigate = useNavigate();
   const getBySlug = useProductStore((s) => s.getBySlug);
   const incrementSold = useProductStore((s) => s.incrementSold);
-  const { user, isAuthenticated, updateBalance } = useAuthStore();
-  const addOrder = useOrderStore((s) => s.addOrder);
-  const addTransaction = useTransactionStore((s) => s.addTransaction);
+  const { user, profile } = useAuth();
   const product = getBySlug(slug || '');
 
   if (!product) {
@@ -30,16 +29,49 @@ export default function ProductPage() {
   const category = categories.find((c) => c.id === product.category_id);
   const hasDiscount = product.original_price && product.original_price > product.price;
 
-  const handleBuy = () => {
-    if (!isAuthenticated || !user) { toast.error('Vui lòng đăng nhập để mua hàng'); navigate('/login'); return; }
-    if (user.balance < product.price) { toast.error(content.product.insufficientBalance); return; }
+  const handleBuy = async () => {
+    if (!user || !profile) { toast.error('Vui lòng đăng nhập để mua hàng'); navigate('/login'); return; }
+    if (profile.balance < product.price) { toast.error(content.product.insufficientBalance); return; }
     if (product.stock <= 0) { toast.error(content.product.outOfStock); return; }
 
-    updateBalance(user.id, -product.price);
-    addOrder({ user_id: user.id, product_id: product.id, product_name: product.name, product_image: product.image_url, quantity: 1, total_price: product.price, status: 'completed', download_url: product.download_url });
-    addTransaction({ user_id: user.id, type: 'purchase', amount: -product.price, balance_before: user.balance, balance_after: user.balance - product.price, description: `Mua ${product.name}`, status: 'completed' });
-    incrementSold(product.id);
-    toast.success(content.product.purchaseSuccess);
+    const isAccount = product.category_id.includes('tai-khoan') || product.category_id.includes('lien-quan') || product.category_id.includes('roblox') || product.category_id.includes('valorant');
+    const giftcode = isAccount ? `TK: user_${Math.floor(Math.random()*9999)} | MK: pass${Math.floor(Math.random()*999)}` : `GIFTCODE-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+
+    // Update balance
+    const { error: balanceError } = await supabase
+      .from('profiles')
+      .update({ balance: profile.balance - product.price })
+      .eq('id', user.id);
+
+    if (balanceError) { toast.error('Lỗi khi thanh toán'); return; }
+
+    // Insert order
+    const { data: orderData } = await supabase.from('orders').insert({
+      user_id: user.id,
+      total_amount: product.price,
+      status: 'completed'
+    }).select().single();
+
+    if (orderData) {
+      await supabase.from('order_items').insert({
+        order_id: orderData.id,
+        product_id: product.id,
+        price: product.price,
+        quantity: 1,
+        giftcode: giftcode
+      });
+
+      await supabase.from('transactions').insert({
+        user_id: user.id,
+        type: 'purchase',
+        amount: -product.price,
+        description: `Mua ${product.name}`,
+        status: 'completed'
+      });
+    }
+
+    incrementSold(product.id); // optimistic update locally
+    toast.success('Mua hàng thành công! Vui lòng kiểm tra mục Đơn hàng.');
   };
 
   return (
@@ -83,7 +115,7 @@ export default function ProductPage() {
             <ShoppingCart size={20} />{product.stock <= 0 ? content.product.outOfStock : content.product.buyNow}
           </button>
 
-          {!isAuthenticated && <p style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}><Link to="/login" style={{ color: 'var(--color-primary)', textDecoration: 'none' }}>{content.product.loginToBuy}</Link></p>}
+          {!user && <p style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}><Link to="/login" style={{ color: 'var(--color-primary)', textDecoration: 'none' }}>{content.product.loginToBuy}</Link></p>}
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', marginTop: '24px' }}>
             {[{ icon: <Shield size={16}/>, text: 'An toàn & bảo mật' }, { icon: <Zap size={16}/>, text: 'Nhận ngay tức thì' }, { icon: <Download size={16}/>, text: 'Link tải vĩnh viễn' }, { icon: <Tag size={16}/>, text: 'Giá tốt nhất' }].map((f, i) => (

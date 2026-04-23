@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { supabase } from '../lib/supabase';
 import type { Product, SystemSettings, AuditLog } from '../types';
 import { products as defaultProducts } from '../data/products';
 import { generateId } from '../utils/helpers';
@@ -9,8 +9,8 @@ import { generateId } from '../utils/helpers';
 // ==========================================
 interface ProductStore {
   products: Product[];
+  fetchProducts: () => Promise<void>;
   setProducts: (products: Product[]) => void;
-  addProduct: (product: Omit<Product, 'id' | 'created_at' | 'updated_at'>) => void;
   updateProduct: (id: string, updates: Partial<Product>) => void;
   deleteProduct: (id: string) => void;
   getById: (id: string) => Product | undefined;
@@ -22,29 +22,15 @@ interface ProductStore {
 }
 
 export const useProductStore = create<ProductStore>()(
-  persist(
     (set, get) => ({
-      products: defaultProducts,
+      products: [],
+
+      fetchProducts: async () => {
+        const { data } = await supabase.from('products').select('*');
+        if (data) set({ products: data as Product[] });
+      },
 
       setProducts: (products) => set({ products }),
-
-      addProduct: (product) => {
-        const newProduct: Product = {
-          ...product,
-          id: generateId(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        set((state) => ({ products: [...state.products, newProduct] }));
-      },
-
-      updateProduct: (id, updates) => {
-        set((state) => ({
-          products: state.products.map((p) =>
-            p.id === id ? { ...p, ...updates, updated_at: new Date().toISOString() } : p
-          ),
-        }));
-      },
 
       deleteProduct: (id) => {
         set((state) => ({
@@ -69,6 +55,7 @@ export const useProductStore = create<ProductStore>()(
       },
 
       incrementSold: (id) => {
+        // Just for local optimistic update, actual increment should be via DB RPC
         set((state) => ({
           products: state.products.map((p) =>
             p.id === id
@@ -77,9 +64,7 @@ export const useProductStore = create<ProductStore>()(
           ),
         }));
       },
-    }),
-    { name: 'tda-product-store' }
-  )
+    })
 );
 
 // ==========================================
@@ -91,7 +76,6 @@ interface SettingsStore {
 }
 
 export const useSettingsStore = create<SettingsStore>()(
-  persist(
     (set) => ({
       settings: {
         id: 'system-settings',
@@ -109,9 +93,7 @@ export const useSettingsStore = create<SettingsStore>()(
           settings: { ...state.settings, ...updates, updated_at: new Date().toISOString() },
         }));
       },
-    }),
-    { name: 'tda-settings-store' }
-  )
+    })
 );
 
 // ==========================================
@@ -132,7 +114,6 @@ interface AdminStore {
 }
 
 export const useAdminStore = create<AdminStore>()(
-  persist(
     (set, get) => ({
       isAdminLoggedIn: false,
       adminUsername: '',
@@ -169,15 +150,5 @@ export const useAdminStore = create<AdminStore>()(
         set((state) => ({ auditLogs: [newLog, ...state.auditLogs] }));
       },
 
-      getAuditLogs: () => get().auditLogs,
-    }),
-    {
-      name: 'tda-admin-store',
-      partialize: (state) => ({
-        auditLogs: state.auditLogs,
-        isAdminLoggedIn: state.isAdminLoggedIn,
-        adminUsername: state.adminUsername,
-      }),
-    }
-  )
+    })
 );

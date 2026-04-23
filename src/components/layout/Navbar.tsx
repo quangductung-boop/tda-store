@@ -1,14 +1,17 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X, Zap, User, Wallet, ShoppingBag, LogOut, ChevronDown } from 'lucide-react';
-import { useAuthStore } from '../../stores/authStore';
+import { Menu, X, Zap, User, Wallet, ShoppingBag, LogOut, ChevronDown, ShoppingCart } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
+import { useCartStore } from '../../stores/cartStore';
 import { content } from '../../config/content';
 import { formatCurrency } from '../../utils/helpers';
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { user, profile } = useAuth();
+  const cartItems = useCartStore((s) => s.items);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -21,8 +24,8 @@ export default function Navbar() {
 
   const isActive = (path: string) => location.pathname === path;
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setIsUserMenuOpen(false);
     navigate('/');
   };
@@ -110,7 +113,18 @@ export default function Navbar() {
 
         {/* User Area */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {isAuthenticated && user ? (
+          
+          {/* Cart Icon */}
+          <Link to="/checkout" className="relative p-2 rounded-xl text-gray-400 hover:text-[#00e5ff] hover:bg-cyan-500/10 transition-all flex items-center justify-center">
+            <ShoppingCart size={22} />
+            {cartItems.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-[#00e5ff] text-[#0a0e17] text-[10px] font-black w-5 h-5 flex items-center justify-center rounded-full animate-bounce">
+                {cartItems.length}
+              </span>
+            )}
+          </Link>
+
+          {user ? (
             <>
               {/* Balance */}
               <Link to="/wallet" style={{
@@ -137,7 +151,7 @@ export default function Navbar() {
                 }}
               >
                 <Wallet size={14} />
-                {formatCurrency(user.balance)}
+                {formatCurrency(profile?.balance || 0)}
               </Link>
 
               {/* User dropdown */}
@@ -170,7 +184,7 @@ export default function Navbar() {
                   }}>
                     <User size={14} color="white" />
                   </div>
-                  <span className="hidden sm:inline">{user.username}</span>
+                  <span className="hidden sm:inline">{profile?.username || user.email?.split('@')[0]}</span>
                   <ChevronDown size={14} style={{
                     transform: isUserMenuOpen ? 'rotate(180deg)' : 'rotate(0)',
                     transition: 'transform 0.3s',
@@ -206,7 +220,7 @@ export default function Navbar() {
                         color: 'var(--color-primary)',
                         fontWeight: 600,
                       }}>
-                        💰 {formatCurrency(user.balance)}
+                        💰 {formatCurrency(profile?.balance || 0)}
                       </div>
 
                       <Link to="/account" onClick={() => setIsUserMenuOpen(false)} style={{
@@ -313,7 +327,7 @@ export default function Navbar() {
               {link.label}
             </Link>
           ))}
-          {!isAuthenticated && (
+          {!user && (
             <Link
               to="/login"
               onClick={() => setIsMenuOpen(false)}
